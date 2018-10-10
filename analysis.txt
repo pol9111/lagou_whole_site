@@ -1,0 +1,366 @@
+
+
+准备工作
+
+目标: 拉钩全站职位(包括已下线的)
+
+robots.txt，看一下有没有什么可用的信息
+查看的拉勾的sitemap，没找到
+估算拉勾的总大小，大约70万条数据
+使用谷歌高级搜索查询 site:www.lagou.com
+找到约 702,000 条结果 （用时 0.14 秒）
+
+
+fiddler抓包分析
+
+尝试找到干净数据, 分析请求难度, 找出合适方案
+
+web
+
+1. 使用搜索(限制关键字)的话, 不需要anti Code Token, 和cookies限制
+https://www.lagou.com/jobs/positionAjax.json
+
+2. 直接爬取公司的社招和校招(没有职位描述)
+https://www.lagou.com/gongsi/searchPosition.json
+
+https://www.lagou.com/gongsi/j5706.html
+https://www.lagou.com/gongsi/j5706.html?schoolJob=true
+
+Cookie: 每次会变, LGRID会换, 只能用一次(先生成一个有效的cookies, 再去请求Ajax)
+生成一个有效的cookies的请求, a和z参数, 未找到怎么来的
+
+Referer: https://www.lagou.com/gongsi/j40738.html
+
+公司html可以找到
+X-Anit-Forge-Code: 28546608
+X-Anit-Forge-Token: a9f919cb-363b-4954-9e1f-fa8f52c6c1a6
+
+3. 扩散
+职位 => 推荐职位 => 职位
+去重后没有的话, 随机拿一个继续
+
+
+app
+
+https://gate.lagou.com/v1/neirong/positions/similarPositions/4892771/	
+https://gate.lagou.com/v1/neirong/positions/similarPositions/2218086/		
+
+X-L-REQ-HEADER: {"appVersion":"7.0.0","deviceType":200,"lgId":"863254010081585_1539088095713","reqVersion":70000,"userToken":"da3bb3eaeb31cce2fd61c7a812511155ae980825efe15e88bb676144f44e4794","userType":0}
+X-L-JANUS-STRATEGY: {"strategies":[{"key":"unlimited_deliver","value":"A"}]}
+Host: gate.lagou.com
+Connection: Keep-Alive
+Accept-Encoding: gzip
+User-Agent: okhttp/3.11.0
+If-Modified-Since: Tue, 09 Oct 2018 12:37:22 GMT
+
+
+反爬
+
+1. 一个cookies用久了, 会被定义为爬虫
+2. 公司的社招和校招Ajax限制更严格
+
+
+
+
+适用方案
+
+1职位队列(每个职位都要去重)
+aiohttp+proxy池
+selenium生成cookies池
+
+2公司队列(只要每个公司去重)
+selenium+proxy池
+mitmproxy获取数据
+缺点: 所有公司都要用selenium请求
+
+3扩散型(不如方案1, 2)
+职位 => 推荐职位 => 职位
+
+
+
+解析
+
+页面id
+公司
+职位
+薪水
+地点
+经验
+学历
+工作时间
+详细地址
+发布时间
+
+
+
+Todo: 测试保存到mongo, sel加代理, 今天发布变成日期, 测试付费代理
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import random
+import re
+
+import requests
+from fake_useragent import UserAgent
+from cookies_pool import get_cookie
+
+
+url = 'https://www.lagou.com/jobs/5201874.html'
+cookies = eval(random.choice(get_cookie()))
+print(cookies)
+
+headers = {
+'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+'Accept-Encoding': 'gzip, deflate, br',
+'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,zh-TW;q=0.6',
+'Cache-Control': 'no-cache',
+'Connection': 'keep-alive',
+'Host': 'www.lagou.com',
+'Pragma': 'no-cache',
+# 'Referer': url,
+'Upgrade-Insecure-Requests': '1',
+'User-Agent': UserAgent().random,
+}
+
+
+resp = requests.get(url, headers=headers, cookies=cookies, proxies={'https': 'http://47.105.151.103:80'}, timeout=10).text
+# print(resp.status_code)
+print(resp)
+
+
+
+def parse(html):
+
+    position = re.findall(r'<span class="name">(.*?)</span>', resp)[0]
+    company = re.findall(r'<h2 class="fl">(.*?)<i', resp, re.S)[0].strip()
+    publish_time = re.findall(r'<p class="publish_time">(.*?)&nbsp;', resp, re.S)[0]
+    addr = re.findall(r'bizArea=.*?#filterBox">.*?</a>(.*?)<a rel="nofollow" href="javascript:;" id="mapPreview">查看地图</a>',
+                      resp, re.S)[0].replace(' ', '').replace('\n', '').replace('-', '')
+    info = re.findall(r'<dd class="job_request">.*?<p>(.*?)</p>', resp, re.S)[0]
+    info_list = re.findall(r'>(.*?)</span>', info)
+    salary = info_list[0].replace(' ', '')
+    city = info_list[1].replace(' ', '').replace('/', '')
+    experience = info_list[2].replace(' ', '').replace('/', '')
+    edu = info_list[3].replace(' ', '').replace('/', '')
+    work_time = info_list[4]
+
+    data = {
+        'position': position,
+        'company': company,
+        'salary': salary,
+        'city': city,
+        'experience': experience,
+        'edu': edu,
+        'work_time': work_time,
+        'publish_time': publish_time,
+        'addr': addr,
+    }
+	return
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Todo: 破解cookies
+
+
+原网址
+https://www.lagou.com/gongsi/j125824.html?schoolJob=true
+
+
+https://a.lagou.com/collect?v=1&_v=j31&a=23630522&t=pageview&_s=1&dl=https%3A%2F%2Fwww.lagou.com%2Fgongsi%2Fj125824.html%3FschoolJob%3Dtrue&dr=https%3A%2F%2Fwww.lagou.com%2Fgongsi%2F125824.html&ul=zh-cn&de=UTF-8&dt=%E6%AF%94%E7%89%B9%E7%A9%BF%E8%B6%8A%E6%8B%9B%E8%81%98%E8%81%8C%E4%BD%8D-%E6%8B%89%E5%8B%BE%E7%BD%91-%E4%B8%93%E4%B8%9A%E7%9A%84%E4%BA%92%E8%81%94%E7%BD%91%E6%8B%9B%E8%81%98%E5%B9%B3%E5%8F%B0&sd=24-bit&sr=1536x864&vp=373x713&je=0&_u=MACAAAQBK~&jid=&cid=1100168654.1536894021&tid=UA-41268416-1&z=1939461660
+
+生成cookies网址
+https://a.lagou.com/collect?v=1&_v=j31&a=515186033&t=pageview&_s=1&dl=https%3A%2F%2Fwww.lagou.com%2Fgongsi%2F125824.html&dr=https%3A%2F%2Fwww.lagou.com%2Fgongsi%2Fj125824.html%3FschoolJob%3Dtrue&ul=zh-cn&de=UTF-8&dt=%E3%80%90%E6%AF%94%E7%89%B9%E7%A9%BF%E8%B6%8A_%E6%AF%94%E7%89%B9%E7%A9%BF%E8%B6%8A%E6%8B%9B%E8%81%98%E3%80%91%E6%B7%B1%E5%9C%B3%E5%B8%82%E6%AF%94%E7%89%B9%E7%A9%BF%E8%B6%8A%E7%A7%91%E6%8A%80%E6%9C%89%E9%99%90%E5%85%AC%E5%8F%B8%E6%8B%9B%E8%81%98%E4%BF%A1%E6%81%AF-%E6%8B%89%E5%8B%BE%E7%BD%91&sd=24-bit&sr=1536x864&vp=373x713&je=0&_u=MACAAAQBK~&jid=&cid=1100168654.1536894021&tid=UA-41268416-1&z=772945198
+
+https://a.lagou.com/collect?v=1&_v=j31&a=515186033&t=pageview&_s=1&dl=https://www.lagou.com/gongsi/125824.html&dr=https://www.lagou.com/gongsi/j125824.html?schoolJob=true&ul=zh-cn&de=UTF-8&dt=【比特穿越_比特穿越招聘】深圳市比特穿越科技有限公司招聘信息-拉勾网&sd=24-bit&sr=1536x864&vp=373x713&je=0&_u=MACAAAQBK~&jid=&cid=1100168654.1536894021&tid=UA-41268416-1&z=772945198
+
+
+参数
+v	1
+_v	j31
+a	515186033
+t	pageview
+_s	1
+dl	https://www.lagou.com/gongsi/125824.html
+dr	https://www.lagou.com/gongsi/j125824.html?schoolJob=true
+ul	zh-cn
+de	UTF-8
+dt	【比特穿越_比特穿越招聘】深圳市比特穿越科技有限公司招聘信息-拉勾网
+sd	24-bit
+sr	1536x864
+vp	373x713
+je	0
+_u	MACAAAQBK~
+jid	
+cid	1100168654.1536894021
+tid	UA-41268416-1
+z	772945198
+
+
+v	1
+_v	j31
+a	23630522
+t	pageview
+_s	1
+dl	https://www.lagou.com/gongsi/j125824.html?schoolJob=true
+dr	https://www.lagou.com/gongsi/125824.html
+ul	zh-cn
+de	UTF-8
+dt	比特穿越招聘职位-拉勾网-专业的互联网招聘平台
+sd	24-bit
+sr	1536x864
+vp	373x713
+je	0
+_u	MACAAAQBK~
+jid	
+cid	1100168654.1536894021
+tid	UA-41268416-1
+z	1939461660
+
+
+请求头
+_ga=GA1.2.1100168654.1536894021; user_trace_token=20180914110023-527f49f3-b7ca-11e8-99c3-525400f775ce; LGUID=20180914110023-527f4de9-b7ca-11e8-99c3-525400f775ce; _gid=GA1.2.884468712.1539006553; Hm_lvt_4233e74dff0ae5bd0a3d81c6ccf756e6=1539006577,1539061307,1539078069,1539089892; LGSID=20181009205812-fabe44e6-cbc2-11e8-bba7-5254005c3644; ab_test_random_num=0; sensorsdata2015jssdkcross=%7B%22distinct_id%22%3A%2216658ebbd58608-04dff4a025ee51-36664c08-1327104-16658ebbd5971f%22%2C%22%24device_id%22%3A%2216658ebbd58608-04dff4a025ee51-36664c08-1327104-16658ebbd5971f%22%7D; sajssdk_2015_cross_new_user=1; X_HTTP_TOKEN=73e5862a0df06d2672d00f26df6b2392; index_location_city=%E5%85%A8%E5%9B%BD; LG_LOGIN_USER_ID=c65f976ab83b9891a29d224b61aeacb5efeae96583c62bd51f8063dce498ccea; _putrc=E9D3EDBD91F4AC5B123F89F2B170EADC; login=true; unick=zbh; gate_login_token=53ccc0a72c3f9135ad9e43f5fd4e56b8efcf3a0306996c2e0f8109185394256d; _gat=1; LGRID=20181009231159-ab1bf447-cbd5-11e8-ae15-525400f775ce; Hm_lpvt_4233e74dff0ae5bd0a3d81c6ccf756e6=1539097947
+
+
+
+
+
+
+
+
+
+响应头
+HTTP/1.1 200 OK
+Server: nfs/1.0.0.2
+Date: Tue, 09 Oct 2018 15:12:27 GMT
+Content-Type: image/gif
+Content-Length: 0
+Connection: keep-alive
+Set-Cookie: LGSID=20181009205812-fabe44e6-cbc2-11e8-bba7-5254005c3644; Path=/; Domain=lagou.com; Expires=Tue, 09 Oct 2018 15:42:27 UTC; Max-Age=1800
+Set-Cookie: LGRID=20181009231227-bc1e2f3d-cbd5-11e8-bba8-5254005c3644; Path=/; Domain=lagou.com
+
+
+
+
+
+ajax请求cookies
+Cookie: _ga=GA1.2.1100168654.1536894021; user_trace_token=20180914110023-527f49f3-b7ca-11e8-99c3-525400f775ce; LGUID=20180914110023-527f4de9-b7ca-11e8-99c3-525400f775ce; _gid=GA1.2.884468712.1539006553; JSESSIONID=ABAAABAAADEAAFIA81DD29BD95D7A4253C2B4D273DE8937; Hm_lvt_4233e74dff0ae5bd0a3d81c6ccf756e6=1539006577,1539061307,1539078069,1539089892; LGSID=20181009205812-fabe44e6-cbc2-11e8-bba7-5254005c3644; ab_test_random_num=0; sensorsdata2015jssdkcross=%7B%22distinct_id%22%3A%2216658ebbd58608-04dff4a025ee51-36664c08-1327104-16658ebbd5971f%22%2C%22%24device_id%22%3A%2216658ebbd58608-04dff4a025ee51-36664c08-1327104-16658ebbd5971f%22%7D; sajssdk_2015_cross_new_user=1; X_HTTP_TOKEN=73e5862a0df06d2672d00f26df6b2392; showExpriedIndex=1; showExpriedCompanyHome=1; showExpriedMyPublish=1; hasDeliver=0; index_location_city=%E5%85%A8%E5%9B%BD; SEARCH_ID=87d9332af1874d00989c4b354f36ae0a; LG_LOGIN_USER_ID=c65f976ab83b9891a29d224b61aeacb5efeae96583c62bd51f8063dce498ccea; _putrc=E9D3EDBD91F4AC5B123F89F2B170EADC; login=true; unick=zbh; gate_login_token=53ccc0a72c3f9135ad9e43f5fd4e56b8efcf3a0306996c2e0f8109185394256d; TG-TRACK-CODE=index_recjob; _gat=1; Hm_lpvt_4233e74dff0ae5bd0a3d81c6ccf756e6=1539097947; LGRID=20181009231227-bc1e2f3d-cbd5-11e8-bba8-5254005c3644
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
