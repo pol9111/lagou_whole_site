@@ -1,5 +1,9 @@
-import redis
 from fake_useragent import UserAgent
+import redis
+import motor.motor_asyncio
+
+PROXY_URL = 'http://piping.mogumiao.com/proxy/api/get_ip_bs?appKey='
+START_PAGE = 5000000
 
 HEADERS = {
 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
@@ -9,11 +13,9 @@ HEADERS = {
 'Connection': 'keep-alive',
 'Host': 'www.lagou.com',
 'Pragma': 'no-cache',
-# 'Referer': url,
 'Upgrade-Insecure-Requests': '1',
 'User-Agent': UserAgent().random,
 }
-
 
 REDIS_POOL = redis.ConnectionPool(host='127.0.0.1', port=6379, decode_responses=True)
 REDIS_CONN = redis.StrictRedis(connection_pool=REDIS_POOL)
@@ -22,8 +24,8 @@ LAGOU_DONE = 'lagou:done'
 LAGOU_RETRY = 'lagou:retry'
 LAGOU_BLANK = 'lagou:blank'
 LAGOU_ITEMS = 'lagou:items'
+PROIES = 'proxies'
 
-
-
-
-
+CLIENT = motor.motor_asyncio.AsyncIOMotorClient('mongodb://localhost:27017')
+DB = CLIENT['lagou']
+TABLE = DB['jobs']
