@@ -3,7 +3,8 @@ import redis
 import motor.motor_asyncio
 
 PROXY_URL = 'http://piping.mogumiao.com/proxy/api/get_ip_bs?appKey='
-START_PAGE = 5000000
+START_PAGE = 0
+PER_LOOP = 5000000
 
 HEADERS = {
 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
@@ -28,4 +29,4 @@ PROIES = 'proxies'
 
 CLIENT = motor.motor_asyncio.AsyncIOMotorClient('mongodb://localhost:27017')
 DB = CLIENT['lagou']
-TABLE = DB['jobs']
+TABLE = DB['job']

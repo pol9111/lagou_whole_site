@@ -1,12 +1,9 @@
-准备工作
+﻿准备工作
 
  目标: 拉钩全站职位(包括已下线的)
  
  robots.txt，看一下有没有什么可用的信息
 查看的拉勾的sitemap，没找到
-估算拉勾的总大小，大约70万条数据
-使用谷歌高级搜索查询 site:www.lagou.com
-找到约 702,000 条结果 （用时 0.14 秒）
 
 
  fiddler抓包分析
@@ -56,7 +53,7 @@ If-Modified-Since: Tue, 09 Oct 2018 12:37:22 GMT
 2. 公司的社招和校招Ajax限制更严格
 
 
- 适用方案
+适用方案
  1职位队列(每个职位都要去重)
 aiohttp+proxy池
 selenium生成cookies池
@@ -64,8 +61,6 @@ selenium生成cookies池
 selenium+proxy池
 mitmproxy获取数据
 缺点: 所有公司都要用selenium请求
-
-
  3扩散型(不如方案1, 2)
 职位 => 推荐职位 => 职位
 
@@ -86,11 +81,15 @@ mitmproxy获取数据
 
 
 
+参考: https://github.com/huangke19/LagouSpider
 
 
 
+成果
 
-
+获取有数据页面	36531691
+已删除页面		12288527
+历时			15个小时
 
 
 
